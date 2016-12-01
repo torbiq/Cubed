@@ -1,96 +1,266 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-public class GameManager : MonoBehaviour {
+public static class GameManager {
 
-    public enum Direction { LEFT, RIGHT }
-    private Direction _dir = Direction.LEFT;
+    private static Enumerators.Direction _playerDirection;
+    public static Enumerators.Direction playerDirection
+    {
+        get { return _playerDirection; }
+        set { _playerDirection = value; }
+    }
+    private static Animator _playerAnimator;
+    private static GameObject _player;
+    private static int _jumpCounter, _maxSquaresOnScreen = 3, _colorsInGrad = 3;
+    private static IntVector2 _lastPosition = new IntVector2(0, 0);
+    private static Material _backgroundMat;
+    private static List<Square> _squares = new List<Square>();
+    private static Gradient _grad = new Gradient();
 
-    private GameObject _squarePrefab;
-    private List<Direction> _allDirs = new List<Direction>();
-    private List<GameObject> _squares = new List<GameObject>();
-    private Animation _animations;
-    private GameObject _player;
-    private GameObject _canvas;
-    private GameObject _pageMainMenu;
-    private GameObject _pageGame;
-
-    private int _lastX, _lastZ, _jumpCounter = 0, _nextSqrCount = 1;
-
-    private float _spawnDistance = 1.8f, _nextGenTime = 0, _genDelay = 2, _nextJumpTime = 0, _jumpTimeDelay = 1.05f;
-
-    class Square {
-        public enum AnimationType {
-            CREATE,
-            DESTROY
-        }
-        private Direction _dir;
-        private GameObject _gameObject;
-        private Animation _animation;
+    public static float spawnDistance
+    {
+        get { return _spawnDistance; }
     }
 
-    public void Init() {
-        _squarePrefab = Resources.Load<GameObject>("Prefabs/Position_Square");
+    private static bool _isGeneratedForward = false,
+                        _isPaused = false;
+    public static bool isPaused { get { return _isPaused; } }
+
+    private static float _spawnDistance = 1.8f,
+                         _nextJumpTime = 0,
+                         _jumpTimeDelay = 1.05f,
+                         _gradTime = 0,
+                         _evalSpeedTime = 0.5f,
+                         _reactionTime = 1.62f; //bigger - then lower
+
+    private static List<Color> _notPassedColors = new List<Color>();
+    private static List<Color> _allColors = new List<Color>();
+    private static Color _lastColor = new Color(),
+                         _lastGradColor = _lastColor;
+
+    private static string _lightRedHex = "#FF7474FF",
+                          _lightBlueHex = "#74FFEDFF",
+                          _lightPinkHex = "#FF749FFF",
+                          _lightMagnetHex = "#BD74FFFF",
+                          _lightOrangeHex = "#FFB074FF",
+                          _lightYellowHex = "#FFFB74FF",
+                          _lightGreenHex = "#BDFF74FF",
+                          _lightBlueGreenHex = "#74FF91FF",
+                          _aquaHex = "#74FFC5FF";
+
+    private static Color _red, _blue, _pink, _magnet, _orange, _yellow, _green, _bluegreen, _aqua;
+
+    private static void InitColors() {
+        ColorUtility.TryParseHtmlString(_lightRedHex, out _red);
+        ColorUtility.TryParseHtmlString(_lightBlueHex, out _blue);
+        ColorUtility.TryParseHtmlString(_lightPinkHex, out _pink);
+        ColorUtility.TryParseHtmlString(_lightMagnetHex, out _magnet);
+        ColorUtility.TryParseHtmlString(_lightOrangeHex, out _orange);
+        ColorUtility.TryParseHtmlString(_lightYellowHex, out _yellow);
+        ColorUtility.TryParseHtmlString(_lightGreenHex, out _green);
+        ColorUtility.TryParseHtmlString(_lightBlueGreenHex, out _bluegreen);
+        ColorUtility.TryParseHtmlString(_aquaHex, out _aqua);
+        _allColors.Add(_red);
+        _allColors.Add(_blue);
+        _allColors.Add(_pink);
+        _allColors.Add(_magnet);
+        _allColors.Add(_orange);
+        _allColors.Add(_yellow);
+        _allColors.Add(_green);
+        _allColors.Add(_bluegreen);
+        _allColors.Add(_aqua);
+        _notPassedColors.AddRange(_allColors);
+        _lastColor = _red;
+    }
+
+    private static Color GetRandomColorFromList() {
+        //we need at least 2 colors in the stack to don't repeat last color
+        if (_notPassedColors.Count < 2) _notPassedColors.AddRange(_allColors);
+        int colorIndex = Random.Range(0, _notPassedColors.Count);
+        if (_notPassedColors[colorIndex] == _lastColor) {
+            colorIndex += 1;
+            colorIndex %= _notPassedColors.Count;
+        }
+        Color returnedColor = _notPassedColors[colorIndex];
+        _lastColor = returnedColor;
+        _notPassedColors.RemoveAt(colorIndex);
+        return returnedColor;
+    }
+
+    private static void ResetGrad() {
+        GradientColorKey[] colorsKeys = new GradientColorKey[_colorsInGrad];
+        colorsKeys[0] = new GradientColorKey(_lastGradColor, 0);
+        for (int i = 1; i < _colorsInGrad; i++) {
+            colorsKeys[i] = new GradientColorKey(GetRandomColorFromList(), i * ((float)1 / _colorsInGrad));
+        }
+        GradientAlphaKey[] keys = new GradientAlphaKey[1];
+        keys[0].alpha = 1;
+        keys[0].time = 0;
+        _grad.SetKeys(colorsKeys, keys);
+        _gradTime = 0;
+    }
+
+    private static Color EvaluateGrad() {
+        _gradTime += _evalSpeedTime * Time.deltaTime / 30;
+        if (_gradTime >= 1) {
+            ResetGrad();
+        }
+        _lastGradColor = _grad.Evaluate(_gradTime);
+        return _lastGradColor;
+    }
+
+    public static void Init() {
+        InitColors();
+        Square.squarePrefab = Resources.Load<GameObject>("Prefabs/Position_Square");
         _player = GameObject.Find("Model");
-        _canvas = GameObject.Find("Canvas");
-        _pageMainMenu = _canvas.transform.Find("Page_Main_Menu").gameObject;
-        _pageGame = _canvas.transform.Find("Page_Game").gameObject;
-        _animations = _player.GetComponent<Animation>();
-    }
+        _playerAnimator = _player.GetComponent<Animator>();
+        _isPaused = false;
+        SwipeInput.swipeRegistred = false;
 
-    void Reset() {
-        _lastX = 0;
-        _lastZ = 0;
-        _jumpCounter = 0;
-    }
+        //Restart();
 
-	// Use this for initialization
-	void Start () {
-        Init();
-        Direction randomDir = (Direction)Random.Range(0, 2);
-        _squares.Add((GameObject)Instantiate(_squarePrefab, new Vector3(_lastX * _spawnDistance, 0, _lastZ * _spawnDistance), Quaternion.Euler(90, 0, 0)));
-        _allDirs.Add(randomDir);
-        //GenerateNextSquare();
-        _pageMainMenu.SetActive(true);
-        _pageGame.SetActive(false);
-    }
-
-    // Update is called once per frame
-    void Update() {
-        if (_allDirs[_jumpCounter] == Direction.LEFT && Time.time < _nextJumpTime) {
-            transform.parent.parent.position = new Vector3(_lastX * _spawnDistance, 0, (((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (_lastZ + 1)) * _spawnDistance);
+        for (int i = 0; i < _squares.Count; i++) {
+            _squares[i].Destroy();
         }
-        else if (_allDirs[_jumpCounter] == Direction.RIGHT && Time.time < _nextJumpTime) {
-            transform.parent.parent.position = new Vector3((((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (_lastX + 1)) * _spawnDistance, 0, _lastZ * _spawnDistance);
-        }
-        else {
-            GenerateNextSquare();
-            _nextJumpTime += _jumpTimeDelay;
-            _jumpCounter++;
-            _animations.Play("Animation_Player_Jump");
-        }
-        if (_squares.Count >= 3) {
-            _squares[_squares.Count - 3].GetComponent<Animation>().Play("Animation_Square_Destroy");
-            _squares.RemoveAt(_squares.Count - 3);
+        _isPaused = true;
+        _squares.RemoveRange(0, _squares.Count);
+        OnEndTimerRestart(null);
+
+        //Restart();
+
+        _lastGradColor = GetRandomColorFromList();
+        _backgroundMat = GameObject.Find("BackgroundPlayer").GetComponent<Renderer>().sharedMaterial;
+        _backgroundMat.color = _lastColor;
+        ResetGrad();
+    }
+    
+    public static void Update() {
+        if (!_isPaused) {
+            _backgroundMat.color = EvaluateGrad();
+            var lastSquarePos = _squares[_jumpCounter].position;
+            if (_squares[_jumpCounter].dir == Enumerators.Direction.L && Time.time < _nextJumpTime) {
+                _player.transform.parent.position = new Vector3(lastSquarePos.x * _spawnDistance, 0, (((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (lastSquarePos.z + 1)) * _spawnDistance);
+                if (Time.time > _nextJumpTime - _jumpTimeDelay / _reactionTime && !_isGeneratedForward) {
+                    GenerateNextSquare();
+                    _isGeneratedForward = true;
+                }
+            }
+            else if (_squares[_jumpCounter].dir == Enumerators.Direction.R && Time.time < _nextJumpTime) {
+                _player.transform.parent.position = new Vector3((((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (lastSquarePos.x + 1)) * _spawnDistance, 0, lastSquarePos.z * _spawnDistance);
+                if (Time.time > _nextJumpTime - _jumpTimeDelay / _reactionTime && !_isGeneratedForward) {
+                    GenerateNextSquare();
+                    _isGeneratedForward = true;
+                }
+            }
+            else {
+                if (_playerDirection != _squares[_jumpCounter + 1].dir || !SwipeInput.swipeRegistred) Restart();
+                _isGeneratedForward = false;
+                SwipeInput.swipeRegistred = false;
+                _nextJumpTime += _jumpTimeDelay;
+                _jumpCounter++;
+                DataManager.playerScore++;
+                _playerAnimator.Play("Jump", -1, 0f);
+            }
+            if (_squares.Count >= _maxSquaresOnScreen) {
+                _squares[_squares.Count - _maxSquaresOnScreen].Destroy();
+
+                _jumpCounter--;
+                _squares.RemoveAt(_squares.Count - _maxSquaresOnScreen);
+            }
         }
     }
 
-    public void GenerateNextSquare() {
-        Direction randomDir = (Direction)Random.Range(0, 2);
-        if (randomDir == Direction.RIGHT) _lastX++;
-        else _lastZ++;
-        var square = (GameObject)Instantiate(_squarePrefab, new Vector3(_lastX * _spawnDistance, 0, _lastZ * _spawnDistance), Quaternion.Euler(90, 0, 0));
-        _squares.Add(square);
-        square.GetComponent<Animation>().Play("Animation_Square_Creation");
-        _allDirs.Add(randomDir);
+    public static void GenerateNextSquare() {
+        Enumerators.Direction spawningDir = (Enumerators.Direction)Random.Range(0, 2);
+        var lastSquarePos = _squares[_squares.Count - 1].position;
+        if (spawningDir == Enumerators.Direction.R) lastSquarePos.GrowX();
+        else lastSquarePos.GrowZ();
+        _squares.Add(new Square(
+            (GameObject)Object.Instantiate(Square.squarePrefab, Vector3.zero, Quaternion.Euler(90, 0, 0)),
+            new IntVector2(lastSquarePos.x, lastSquarePos.z),
+            spawningDir));
     }
 
-    public void Close() {
+    public static void Close() {
         Application.Quit();
     }
 
-    public void StartGame() {
-        _pageMainMenu.SetActive(false);
-        _pageGame.SetActive(true);
+    public static void Restart() {
+        if (!_isPaused) {
+            for (int i = 0; i < _squares.Count; i++) {
+                _squares[i].Destroy();
+            }
+            TimeManager.AddTimer(OnEndTimerRestart, null, false, Time.time, 0, Time.time + 1.5f);
+            _isPaused = true;
+            _squares.RemoveRange(0, _squares.Count);
+        }
+        else {
+            _isPaused = false;
+            Restart();
+        }
+    }
+
+    private static void OnEndTimerRestart(object[] args) {
+        SwipeInput.swipeRegistred = false;
+        var lastSquarePos = new IntVector2(0, 0);
+        _player.transform.parent.position = new Vector3(lastSquarePos.x, 0, lastSquarePos.z);
+        _jumpCounter = 1;
+        _squares.Add(new Square(
+             (GameObject)Object.Instantiate(Square.squarePrefab, Vector3.zero, Quaternion.Euler(90, 0, 0)),
+             new IntVector2(lastSquarePos.x, lastSquarePos.z),
+             Enumerators.Direction.L));
+        GenerateNextSquare();
+        _isGeneratedForward = false;
+        DataManager.playerScore = 0;
+        TimeManager.AddTimer(OnEndTimerCreateSquares, null, false, Time.time, 0, Time.time + 2f);
+    }
+
+    private static void OnEndTimerCreateSquares(object[] args) {
+        if (_playerDirection != _squares[_jumpCounter].dir || !SwipeInput.swipeRegistred) {
+            Restart();
+        }
+        else {
+            _isPaused = false;
+            _isGeneratedForward = false;
+            _nextJumpTime = Time.time + _jumpTimeDelay;
+            _playerAnimator.Play("Jump", -1, 0f);
+        }
+    }
+
+    public static void MenuUpdate() {
+        _backgroundMat.color = EvaluateGrad();
+        var lastSquarePos = _squares[_jumpCounter].position;
+        if (_squares[_jumpCounter].dir == Enumerators.Direction.L && Time.time < _nextJumpTime) {
+            _player.transform.parent.position = new Vector3(lastSquarePos.x * _spawnDistance, 0, (((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (lastSquarePos.z + 1)) * _spawnDistance);
+            if (Time.time > _nextJumpTime - _jumpTimeDelay / _reactionTime && !_isGeneratedForward) {
+                GenerateNextSquare();
+                _isGeneratedForward = true;
+            }
+        }
+        else if (_squares[_jumpCounter].dir == Enumerators.Direction.R && Time.time < _nextJumpTime) {
+            _player.transform.parent.position = new Vector3((((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (lastSquarePos.x + 1)) * _spawnDistance, 0, lastSquarePos.z * _spawnDistance);
+            if (Time.time > _nextJumpTime - _jumpTimeDelay / _reactionTime && !_isGeneratedForward) {
+                GenerateNextSquare();
+                _isGeneratedForward = true;
+            }
+        }
+        else {
+            //if (_playerDirection != _squares[_jumpCounter + 1].dir || !SwipeInput.swipeRegistred) Restart();
+            _isGeneratedForward = false;
+            SwipeInput.swipeRegistred = false;
+            _nextJumpTime += _jumpTimeDelay;
+            _jumpCounter++;
+            DataManager.playerScore++;
+            _playerAnimator.Play("Jump", -1, 0f);
+        }
+        if (_squares.Count >= _maxSquaresOnScreen) {
+            _squares[_squares.Count - _maxSquaresOnScreen].Destroy();
+
+            _jumpCounter--;
+            _squares.RemoveAt(_squares.Count - _maxSquaresOnScreen);
+        }
+    }
+
+    public static void StartGame() {
     }
 }
