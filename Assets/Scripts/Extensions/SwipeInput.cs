@@ -26,10 +26,10 @@ public static class SwipeInput {
             }
         }
 #elif UNITY_EDITOR
-        if (Input.GetKeyDown(KeyCode.LeftArrow)) {
+        if (Input.GetKey(KeyCode.LeftArrow)) {
             BaseSetDir(Enumerators.Direction.L);
         }
-        else if (Input.GetKeyDown(KeyCode.RightArrow)) {
+        else if (Input.GetKey(KeyCode.RightArrow)) {
             BaseSetDir(Enumerators.Direction.R);
         }
 #endif

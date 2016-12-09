@@ -32,6 +32,11 @@ public class PageMainMenu : Page {
         if (!GameManager.isPaused) GameManager.Restart();
     }
 
+    public void Update() {
+        if (GameManager.isPaused) _buttonRestart.gameObject.SetActive(false);
+        else _buttonRestart.gameObject.SetActive(true);
+    }
+
     public void OnExit() {
         Application.Quit();
     }

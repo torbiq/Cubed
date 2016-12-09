@@ -60,8 +60,7 @@ public static class TimeManager {
             UIManager.UpdateScore(DataManager.currentData.score.ToString());
         }
         else if (StateManager.AppState == Enumerators.AppState.MENU) {
-            //GameManager.Restart();
-            //GameManager.MenuUpdate();
+            UIManager.UpdateMenu();
         }
 
         for (int i = 0; i < _timers.Count; i++) {

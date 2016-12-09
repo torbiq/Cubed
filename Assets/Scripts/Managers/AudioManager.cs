@@ -6,14 +6,18 @@ public static class AudioManager {
 
     //private static AudioClip _winSound,
 
-    public static void Init() {
-        if (!StateManager.isAppStarted) {
+    static AudioManager() {
+        Init();
+    }
+
+    private static void Init() {
+        //if (!StateManager.isAppStarted) {
             _audioSource = GameObject.Find("Main Camera").GetComponent<AudioSource>();
             //_winSound = Resources.Load<AudioClip>("Sounds/Xonix_Win");
-        }
-        else {
-            throw new System.NotImplementedException("Can't initialize audio manager more than once");
-        }
+        //}
+        //else {
+        //    throw new System.NotImplementedException("Can't initialize audio manager more than once");
+        //}
     }
 
     //public static void PlaySoundType(Enumerators.SoundType soundType) {

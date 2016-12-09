@@ -1,29 +1,34 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using GoogleMobileAds.Api;
 public static class GameManager {
 
     private static Enumerators.Direction _playerDirection;
     public static Enumerators.Direction playerDirection
     {
         get { return _playerDirection; }
-        set { _playerDirection = value; }
+        set {
+            _playerDirection = value;
+            if (_squares.Count > 0 && !_isPaused) if (_playerDirection != _squares[_squares.Count - 1].dir) Restart();
+        }
     }
     private static Animator _playerAnimator;
     private static GameObject _player;
-    private static int _jumpCounter, _maxSquaresOnScreen = 3, _colorsInGrad = 3;
+    private static int _jumpCounter, _maxSquaresOnScreen = 3, _colorsInGrad = 3, _deaths = 0;
     private static IntVector2 _lastPosition = new IntVector2(0, 0);
     private static Material _backgroundMat;
     private static List<Square> _squares = new List<Square>();
     private static Gradient _grad = new Gradient();
-
     public static float spawnDistance
     {
         get { return _spawnDistance; }
     }
 
     private static bool _isGeneratedForward = false,
-                        _isPaused = false;
+                        _isPaused = false,
+                        _isWaiting = false,
+                        _hasJustInited = false;
     public static bool isPaused { get { return _isPaused; } }
 
     private static float _spawnDistance = 1.8f,
@@ -31,12 +36,14 @@ public static class GameManager {
                          _jumpTimeDelay = 1.05f,
                          _gradTime = 0,
                          _evalSpeedTime = 0.5f,
-                         _reactionTime = 1.62f; //bigger - then lower
+                         _reactionTime = 2.1f; //bigger - then lower
 
     private static List<Color> _notPassedColors = new List<Color>();
     private static List<Color> _allColors = new List<Color>();
     private static Color _lastColor = new Color(),
                          _lastGradColor = _lastColor;
+
+    private const int _deathsToInterstitial = 10;
 
     private static string _lightRedHex = "#FF7474FF",
                           _lightBlueHex = "#74FFEDFF",
@@ -49,6 +56,10 @@ public static class GameManager {
                           _aquaHex = "#74FFC5FF";
 
     private static Color _red, _blue, _pink, _magnet, _orange, _yellow, _green, _bluegreen, _aqua;
+
+    static GameManager() {
+        Init();
+    }
 
     private static void InitColors() {
         ColorUtility.TryParseHtmlString(_lightRedHex, out _red);
@@ -109,15 +120,13 @@ public static class GameManager {
         return _lastGradColor;
     }
 
-    public static void Init() {
+    private static void Init() {
         InitColors();
         Square.squarePrefab = Resources.Load<GameObject>("Prefabs/Position_Square");
         _player = GameObject.Find("Model");
         _playerAnimator = _player.GetComponent<Animator>();
         _isPaused = false;
         SwipeInput.swipeRegistred = false;
-
-        //Restart();
 
         for (int i = 0; i < _squares.Count; i++) {
             _squares[i].Destroy();
@@ -126,8 +135,6 @@ public static class GameManager {
         _squares.RemoveRange(0, _squares.Count);
         OnEndTimerRestart(null);
 
-        //Restart();
-
         _lastGradColor = GetRandomColorFromList();
         _backgroundMat = GameObject.Find("BackgroundPlayer").GetComponent<Renderer>().sharedMaterial;
         _backgroundMat.color = _lastColor;
@@ -135,21 +142,19 @@ public static class GameManager {
     }
     
     public static void Update() {
-        if (!_isPaused) {
+        if (!_isPaused && !_hasJustInited) {
             _backgroundMat.color = EvaluateGrad();
             var lastSquarePos = _squares[_jumpCounter].position;
             if (_squares[_jumpCounter].dir == Enumerators.Direction.L && Time.time < _nextJumpTime) {
                 _player.transform.parent.position = new Vector3(lastSquarePos.x * _spawnDistance, 0, (((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (lastSquarePos.z + 1)) * _spawnDistance);
                 if (Time.time > _nextJumpTime - _jumpTimeDelay / _reactionTime && !_isGeneratedForward) {
                     GenerateNextSquare();
-                    _isGeneratedForward = true;
                 }
             }
             else if (_squares[_jumpCounter].dir == Enumerators.Direction.R && Time.time < _nextJumpTime) {
                 _player.transform.parent.position = new Vector3((((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (lastSquarePos.x + 1)) * _spawnDistance, 0, lastSquarePos.z * _spawnDistance);
                 if (Time.time > _nextJumpTime - _jumpTimeDelay / _reactionTime && !_isGeneratedForward) {
                     GenerateNextSquare();
-                    _isGeneratedForward = true;
                 }
             }
             else {
@@ -168,9 +173,13 @@ public static class GameManager {
                 _squares.RemoveAt(_squares.Count - _maxSquaresOnScreen);
             }
         }
+        if (_isWaiting && SwipeInput.swipeRegistred) {
+            OnEndTimerCreateSquares(null);
+        }
     }
 
     public static void GenerateNextSquare() {
+        _isGeneratedForward = true;
         Enumerators.Direction spawningDir = (Enumerators.Direction)Random.Range(0, 2);
         var lastSquarePos = _squares[_squares.Count - 1].position;
         if (spawningDir == Enumerators.Direction.R) lastSquarePos.GrowX();
@@ -190,6 +199,13 @@ public static class GameManager {
             for (int i = 0; i < _squares.Count; i++) {
                 _squares[i].Destroy();
             }
+
+            _deaths++;
+            if (_deaths >= _deathsToInterstitial) {
+                _deaths = 0;
+                GameAds.ShowInterstitial();
+            }
+
             TimeManager.AddTimer(OnEndTimerRestart, null, false, Time.time, 0, Time.time + 1.5f);
             _isPaused = true;
             _squares.RemoveRange(0, _squares.Count);
@@ -212,11 +228,12 @@ public static class GameManager {
         GenerateNextSquare();
         _isGeneratedForward = false;
         DataManager.playerScore = 0;
-        TimeManager.AddTimer(OnEndTimerCreateSquares, null, false, Time.time, 0, Time.time + 2f);
+        _isWaiting = true;
     }
 
     private static void OnEndTimerCreateSquares(object[] args) {
-        if (_playerDirection != _squares[_jumpCounter].dir || !SwipeInput.swipeRegistred) {
+        _isWaiting = false;
+        if (_squares.Count > 0) if (_playerDirection != _squares[_squares.Count - 1].dir || !SwipeInput.swipeRegistred) {
             Restart();
         }
         else {
@@ -224,43 +241,36 @@ public static class GameManager {
             _isGeneratedForward = false;
             _nextJumpTime = Time.time + _jumpTimeDelay;
             _playerAnimator.Play("Jump", -1, 0f);
-        }
-    }
-
-    public static void MenuUpdate() {
-        _backgroundMat.color = EvaluateGrad();
-        var lastSquarePos = _squares[_jumpCounter].position;
-        if (_squares[_jumpCounter].dir == Enumerators.Direction.L && Time.time < _nextJumpTime) {
-            _player.transform.parent.position = new Vector3(lastSquarePos.x * _spawnDistance, 0, (((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (lastSquarePos.z + 1)) * _spawnDistance);
-            if (Time.time > _nextJumpTime - _jumpTimeDelay / _reactionTime && !_isGeneratedForward) {
-                GenerateNextSquare();
-                _isGeneratedForward = true;
-            }
-        }
-        else if (_squares[_jumpCounter].dir == Enumerators.Direction.R && Time.time < _nextJumpTime) {
-            _player.transform.parent.position = new Vector3((((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (lastSquarePos.x + 1)) * _spawnDistance, 0, lastSquarePos.z * _spawnDistance);
-            if (Time.time > _nextJumpTime - _jumpTimeDelay / _reactionTime && !_isGeneratedForward) {
-                GenerateNextSquare();
-                _isGeneratedForward = true;
-            }
-        }
-        else {
-            //if (_playerDirection != _squares[_jumpCounter + 1].dir || !SwipeInput.swipeRegistred) Restart();
-            _isGeneratedForward = false;
             SwipeInput.swipeRegistred = false;
-            _nextJumpTime += _jumpTimeDelay;
-            _jumpCounter++;
-            DataManager.playerScore++;
-            _playerAnimator.Play("Jump", -1, 0f);
-        }
-        if (_squares.Count >= _maxSquaresOnScreen) {
-            _squares[_squares.Count - _maxSquaresOnScreen].Destroy();
-
-            _jumpCounter--;
-            _squares.RemoveAt(_squares.Count - _maxSquaresOnScreen);
         }
     }
 
-    public static void StartGame() {
+    public static void MenuStartUpdate() {
+            _backgroundMat.color = EvaluateGrad();
+            var lastSquarePos = _squares[_jumpCounter].position;
+            _playerDirection = _squares[_jumpCounter].dir;
+            if (_squares[_jumpCounter].dir == Enumerators.Direction.L && Time.time < _nextJumpTime) {
+                _player.transform.parent.position = new Vector3(lastSquarePos.x * _spawnDistance, 0, (((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (lastSquarePos.z + 1)) * _spawnDistance);
+                if (Time.time > _nextJumpTime - _jumpTimeDelay / _reactionTime && !_isGeneratedForward) {
+                    GenerateNextSquare();
+                }
+            }
+            else if (_squares[_jumpCounter].dir == Enumerators.Direction.R && Time.time < _nextJumpTime) {
+                _player.transform.parent.position = new Vector3((((Time.time - _nextJumpTime - _jumpTimeDelay) / _jumpTimeDelay) + (lastSquarePos.x + 1)) * _spawnDistance, 0, lastSquarePos.z * _spawnDistance);
+                if (Time.time > _nextJumpTime - _jumpTimeDelay / _reactionTime && !_isGeneratedForward) {
+                    GenerateNextSquare();
+                }
+            }
+            else {
+                _isGeneratedForward = false;
+                _nextJumpTime += _jumpTimeDelay;
+                _jumpCounter++;
+                _playerAnimator.Play("Jump", -1, 0f);
+            }
+            if (_squares.Count >= _maxSquaresOnScreen) {
+                _squares[_squares.Count - _maxSquaresOnScreen].Destroy();
+                _jumpCounter--;
+                _squares.RemoveAt(_squares.Count - _maxSquaresOnScreen);
+            }
     }
 }

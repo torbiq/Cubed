@@ -1,17 +1,14 @@
 ﻿using UnityEngine;
 using System.Collections;
+using GoogleMobileAds.Api;
 
 public class MainEntryPoint : MonoBehaviour {
-    
-    void Awake() {
-        StateManager.Init();
-    }
 
     void Update() {
         TimeManager.Update();
     }
 
     void OnApplicationQuit() {
-        StateManager.OnCloseApp();
+        if (DataManager.isLoaded) DataManager.Save();
     }
 }

@@ -5,23 +5,27 @@ using System.Runtime.Serialization.Formatters.Binary;
 
 [System.Serializable]
 public class PlayerData {
+    public uint pts = 0;
     public uint score = 0;
 
     public PlayerData() {
         score = 0;
+        pts = 0;
     }
 }
 
-public static class DataManager {
 
+public static class DataManager {
+    private static bool _isLoaded = false;
+    public static bool isLoaded { get { return _isLoaded; } }
     private static string _localFilePath = "/playerData.dat";
     public static string appDataPath { get { return Application.persistentDataPath + _localFilePath; } }
 
     private static PlayerData _currentData = new PlayerData();
     public static PlayerData currentData { get { return _currentData; } }
 
-    private static uint _bestScore = 0;
-
+    private static uint _bestScore = 0,
+                        _pts = 0;
     private static uint _BestScore
     {
         get
@@ -54,7 +58,7 @@ public static class DataManager {
 
         PlayerData playerDataForSave = new PlayerData();
         playerDataForSave.score = _BestScore;
-
+        playerDataForSave.pts = _pts;
         bf.Serialize(file, playerDataForSave);
 
         file.Close();
@@ -68,20 +72,27 @@ public static class DataManager {
             PlayerData recievedData = (PlayerData)bf.Deserialize(file);
             _currentData = new PlayerData();
             _BestScore = recievedData.score;
+            _pts = recievedData.pts;
             file.Close();
         }
         else {
             _currentData = new PlayerData();
             _bestScore = 0;
+            _pts = 0;
         }
+        _isLoaded = true;
     }
 
-    public static void Init() {
-        if (!StateManager.isAppStarted) {
+    private static void Init() {
+        //if (!StateManager.isAppStarted) {
             Load();
-        }
-        else {
-            throw new System.NotImplementedException("Can't initialize date manager more than once");
-        }
+        //}
+        //else {
+        //    throw new System.NotImplementedException("Can't initialize date manager more than once");
+        //}
+    }
+
+    static DataManager() {
+        Init();
     }
 }

@@ -49,31 +49,34 @@ public static class UIManager {
         ((PageGame)_pageGame).UpdateBestScore(bestScore);
     }
 
+    public static void UpdateMenu() {
+        ((PageMainMenu)_pageMainMenu).Update();
+    }
+
     private static void HideAll() {
         for (var i = 0; i < _pages.Count; i++) {
             _pages[i].Hide();
         }
     }
 
-    public static void Init() {
-        if (!StateManager.isAppStarted) {
-            _canvas = GameObject.Find("Canvas").GetComponent<Canvas>();
+    private static void Init() {
+        _canvas = GameObject.Find("Canvas").GetComponent<Canvas>();
 
-            _background = GameObject.Find("BackgroundPlayer").gameObject;
+        _background = GameObject.Find("BackgroundPlayer").gameObject;
 
-            _pageMainMenu = new PageMainMenu();
-            _pageGame = new PageGame();
-            
-            _pages.Add(_pageMainMenu);
-            _pages.Add(_pageGame);
+        _pageMainMenu = new PageMainMenu();
+        _pageGame = new PageGame();
 
-            for (var i = 0; i < _pages.Count; i++) {
-                _pages[i].Load();
-                _pages[i].Init();
-            }
+        _pages.Add(_pageMainMenu);
+        _pages.Add(_pageGame);
+
+        for (var i = 0; i < _pages.Count; i++) {
+            _pages[i].Load();
+            _pages[i].Init();
         }
-        else {
-            throw new System.NotImplementedException("Can't initialize ui manager more than once");
-        }
+    }
+
+    static UIManager() {
+        Init();
     }
 }
