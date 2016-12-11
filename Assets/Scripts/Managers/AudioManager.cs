@@ -6,11 +6,7 @@ public static class AudioManager {
 
     //private static AudioClip _winSound,
 
-    static AudioManager() {
-        Init();
-    }
-
-    private static void Init() {
+    public static void Init() {
         //if (!StateManager.isAppStarted) {
             _audioSource = GameObject.Find("Main Camera").GetComponent<AudioSource>();
             //_winSound = Resources.Load<AudioClip>("Sounds/Xonix_Win");

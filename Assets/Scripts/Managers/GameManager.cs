@@ -24,6 +24,7 @@ public static class GameManager {
     {
         get { return _spawnDistance; }
     }
+    private static List<Square> _poolObject = new List<Square>();
 
     private static bool _isGeneratedForward = false,
                         _isPaused = false,
@@ -36,7 +37,7 @@ public static class GameManager {
                          _jumpTimeDelay = 1.05f,
                          _gradTime = 0,
                          _evalSpeedTime = 0.5f,
-                         _reactionTime = 2.1f; //bigger - then lower
+                         _reactionTime = 1.6f;//2.1f; //bigger - then lower
 
     private static List<Color> _notPassedColors = new List<Color>();
     private static List<Color> _allColors = new List<Color>();
@@ -56,10 +57,6 @@ public static class GameManager {
                           _aquaHex = "#74FFC5FF";
 
     private static Color _red, _blue, _pink, _magnet, _orange, _yellow, _green, _bluegreen, _aqua;
-
-    static GameManager() {
-        Init();
-    }
 
     private static void InitColors() {
         ColorUtility.TryParseHtmlString(_lightRedHex, out _red);
@@ -120,7 +117,7 @@ public static class GameManager {
         return _lastGradColor;
     }
 
-    private static void Init() {
+    public static void Init() {
         InitColors();
         Square.squarePrefab = Resources.Load<GameObject>("Prefabs/Position_Square");
         _player = GameObject.Find("Model");
@@ -128,11 +125,22 @@ public static class GameManager {
         _isPaused = false;
         SwipeInput.swipeRegistred = false;
 
-        for (int i = 0; i < _squares.Count; i++) {
-            _squares[i].Destroy();
+        //for (int i = 0; i < _squares.Count; i++) {
+        //    _squares[i].Destroy();
+        //    //_poolObject.Add(_squares[i]);
+        //}
+        _squares.Clear();
+
+        for (int i = 0; i < 20; i++) {
+            _poolObject.Add(new Square(
+                 (GameObject)Object.Instantiate(Square.squarePrefab, Vector3.zero, Quaternion.Euler(90, 0, 0)),
+                 new IntVector2(0, 0),
+                 Enumerators.Direction.L));
+            _poolObject[i].instance.SetActive(false);
         }
+
         _isPaused = true;
-        _squares.RemoveRange(0, _squares.Count);
+        //_squares.RemoveRange(0, _squares.Count);
         OnEndTimerRestart(null);
 
         _lastGradColor = GetRandomColorFromList();
@@ -143,6 +151,7 @@ public static class GameManager {
     
     public static void Update() {
         if (!_isPaused && !_hasJustInited) {
+            Time.timeScale += 0.003f * Time.deltaTime;
             _backgroundMat.color = EvaluateGrad();
             var lastSquarePos = _squares[_jumpCounter].position;
             if (_squares[_jumpCounter].dir == Enumerators.Direction.L && Time.time < _nextJumpTime) {
@@ -168,7 +177,7 @@ public static class GameManager {
             }
             if (_squares.Count >= _maxSquaresOnScreen) {
                 _squares[_squares.Count - _maxSquaresOnScreen].Destroy();
-
+                _poolObject.Add(_squares[_squares.Count - _maxSquaresOnScreen]);
                 _jumpCounter--;
                 _squares.RemoveAt(_squares.Count - _maxSquaresOnScreen);
             }
@@ -184,10 +193,16 @@ public static class GameManager {
         var lastSquarePos = _squares[_squares.Count - 1].position;
         if (spawningDir == Enumerators.Direction.R) lastSquarePos.GrowX();
         else lastSquarePos.GrowZ();
-        _squares.Add(new Square(
-            (GameObject)Object.Instantiate(Square.squarePrefab, Vector3.zero, Quaternion.Euler(90, 0, 0)),
-            new IntVector2(lastSquarePos.x, lastSquarePos.z),
-            spawningDir));
+        //_squares.Add(new Square(
+        //    (GameObject)Object.Instantiate(Square.squarePrefab, Vector3.zero, Quaternion.Euler(90, 0, 0)),
+        //    new IntVector2(lastSquarePos.x, lastSquarePos.z),
+        //    spawningDir));
+        var addedSquare = _poolObject[0];
+        _poolObject.RemoveAt(0);
+        _squares.Add(addedSquare);
+        addedSquare.Appear();
+        addedSquare.position = lastSquarePos;
+        addedSquare.dir = spawningDir;
     }
 
     public static void Close() {
@@ -198,7 +213,10 @@ public static class GameManager {
         if (!_isPaused) {
             for (int i = 0; i < _squares.Count; i++) {
                 _squares[i].Destroy();
+                _poolObject.Add(_squares[i]);
+                //_squares[i].instance.SetActive(false);
             }
+            _squares.Clear();
 
             _deaths++;
             if (_deaths >= _deathsToInterstitial) {
@@ -221,10 +239,18 @@ public static class GameManager {
         var lastSquarePos = new IntVector2(0, 0);
         _player.transform.parent.position = new Vector3(lastSquarePos.x, 0, lastSquarePos.z);
         _jumpCounter = 1;
-        _squares.Add(new Square(
-             (GameObject)Object.Instantiate(Square.squarePrefab, Vector3.zero, Quaternion.Euler(90, 0, 0)),
-             new IntVector2(lastSquarePos.x, lastSquarePos.z),
-             Enumerators.Direction.L));
+        //_squares.Add(new Square(
+        //     (GameObject)Object.Instantiate(Square.squarePrefab, Vector3.zero, Quaternion.Euler(90, 0, 0)),
+        //     new IntVector2(lastSquarePos.x, lastSquarePos.z),
+        //     Enumerators.Direction.L));
+
+        var addedSquare = _poolObject[0];
+        _poolObject.RemoveAt(0);
+        _squares.Add(addedSquare);
+        addedSquare.Appear();
+        addedSquare.position = lastSquarePos;
+        addedSquare.dir = Enumerators.Direction.L;
+
         GenerateNextSquare();
         _isGeneratedForward = false;
         DataManager.playerScore = 0;
@@ -237,7 +263,8 @@ public static class GameManager {
             Restart();
         }
         else {
-            _isPaused = false;
+                Time.timeScale = 1;
+                _isPaused = false;
             _isGeneratedForward = false;
             _nextJumpTime = Time.time + _jumpTimeDelay;
             _playerAnimator.Play("Jump", -1, 0f);
@@ -269,6 +296,7 @@ public static class GameManager {
             }
             if (_squares.Count >= _maxSquaresOnScreen) {
                 _squares[_squares.Count - _maxSquaresOnScreen].Destroy();
+                _poolObject.Add(_squares[_squares.Count - _maxSquaresOnScreen]);
                 _jumpCounter--;
                 _squares.RemoveAt(_squares.Count - _maxSquaresOnScreen);
             }

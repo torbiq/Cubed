@@ -59,7 +59,7 @@ public static class UIManager {
         }
     }
 
-    private static void Init() {
+    public static void Init() {
         _canvas = GameObject.Find("Canvas").GetComponent<Canvas>();
 
         _background = GameObject.Find("BackgroundPlayer").gameObject;
@@ -74,9 +74,7 @@ public static class UIManager {
             _pages[i].Load();
             _pages[i].Init();
         }
-    }
 
-    static UIManager() {
-        Init();
+        //HideAll();
     }
 }

@@ -28,12 +28,8 @@ public static class StateManager {
         }
     }
 
-    private static void Init() {
+    public static void Init() {
         _isAppStarted = true;
         AppState = Enumerators.AppState.MENU;
-    }
-
-    static StateManager() {
-        Init();
     }
 }

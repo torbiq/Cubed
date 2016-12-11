@@ -14,6 +14,7 @@ public class Square {
     public Enumerators.Direction dir
     {
         get { return _dir; }
+        set { _dir = value; }
     }
     public GameObject instance
     {
@@ -23,6 +24,10 @@ public class Square {
     public IntVector2 position
     {
         get { return _position; }
+        set {
+            _position = value;
+            _instance.transform.position = new Vector3(value.x * GameManager.spawnDistance, 0, value.z * GameManager.spawnDistance);
+        }
     }
     public static GameObject squarePrefab {
         get { return _squarePrefab; }
@@ -51,8 +56,18 @@ public class Square {
         PlayAnim(Enumerators.SquareAnimType.CREATE);
     }
 
+    public void Appear() {
+        _instance.SetActive(true);
+        PlayAnim(Enumerators.SquareAnimType.CREATE);
+    }
+
     public void Destroy() {
         PlayAnim(Enumerators.SquareAnimType.DESTROY);
-        Object.Destroy(_instance, 3);
+        //Object.Destroy(_instance, 3);
+        TimeManager.AddTimer(OnTimerDesyroyEnd, null, false, Time.time, 0, Time.time + 3);
+    }
+
+    public void OnTimerDesyroyEnd(object[] args) {
+        _instance.SetActive(false);
     }
 }

@@ -10,7 +10,7 @@ public static class GameAds {
     private static BannerView _banner;
     private static InterstitialAd _ad_interstitial;
 
-    private static void Init() {
+    public static void Init() {
         _ad_interstitial = new InterstitialAd(GameAds.interstitial_onrestart_ID);
         AdRequest _interstitial_request = new AdRequest.Builder().Build(); //.AddTestDevice(AdRequest.TestDeviceSimulator).AddTestDevice(GameAds.testDevice_ID).
         _ad_interstitial.LoadAd(_interstitial_request);
@@ -34,9 +34,5 @@ public static class GameAds {
         if (_ad_interstitial.IsLoaded()) {
             _ad_interstitial.Show();
         }
-    }
-
-    static GameAds() {
-        Init();
     }
 }

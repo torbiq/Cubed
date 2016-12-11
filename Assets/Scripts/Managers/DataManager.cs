@@ -83,16 +83,12 @@ public static class DataManager {
         _isLoaded = true;
     }
 
-    private static void Init() {
+    public static void Init() {
         //if (!StateManager.isAppStarted) {
             Load();
         //}
         //else {
         //    throw new System.NotImplementedException("Can't initialize date manager more than once");
         //}
-    }
-
-    static DataManager() {
-        Init();
     }
 }
